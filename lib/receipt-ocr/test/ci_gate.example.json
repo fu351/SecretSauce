@@ -1,0 +1,10 @@
+{
+  "_comment": "CI accuracy gate for ocr_bench.py --gate. Adjust thresholds after expanding the GT set. With only 8 receipts these numbers are fragile — see docs/ocr-pipeline-architecture.md for the GT expansion plan.",
+  "engine": "ensemble",
+  "min_overall_accuracy": 0.80,
+  "min_per_store_accuracy": {
+    "Walmart": 0.80,
+    "Whole Foods": 0.75,
+    "Trader Joe's": 0.70
+  }
+}

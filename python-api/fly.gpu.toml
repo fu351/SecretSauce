@@ -1,0 +1,40 @@
+# Fly config for the GPU build. Use this alongside Dockerfile.python-api.gpu
+# when you want EasyOCR/PaddleOCR to run on a CUDA device. Cost is roughly
+# $0.50/hr (a10) to $2/hr (l40s) so prefer the smaller one to start.
+#
+# Deploy:
+#   fly deploy --config python-api/fly.gpu.toml \
+#              --dockerfile backend/docker/Dockerfile.python-api.gpu
+#
+# To swap back to CPU just deploy with python-api/fly.toml — the app name
+# is the same so traffic moves atomically.
+
+app = "secretsauce-gpu"
+primary_region = "ord"
+
+[build]
+  dockerfile = "../backend/docker/Dockerfile.python-api.gpu"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  # Don't scale to zero on GPU — cold start is ~60s with model preload.
+  # If you can tolerate that, set this to 0 to save on idle GPU minutes.
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  # GPU machines must be performance-tier; shared CPU is rejected.
+  cpu_kind = "performance"
+  cpus = 4
+  memory_mb = 16384
+  # GPU spec: a10 (24GB, ~$0.50/hr) is plenty for EasyOCR + PaddleOCR.
+  # Upgrade to "l40s" (48GB, ~$2/hr) only if you batch multiple receipts
+  # in flight per machine.
+  gpu_kind = "a10"
+  gpus = 1

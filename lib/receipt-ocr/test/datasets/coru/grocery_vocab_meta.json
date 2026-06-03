@@ -1,0 +1,357 @@
+{
+  "source": "abdoelsayed/CORU",
+  "rows_total": 10000,
+  "rows_english": 2783,
+  "rows_excluded_by_class": 0,
+  "unique_tokens": 1946,
+  "excluded_classes": [],
+  "min_token_len": 3,
+  "classes": [
+    {
+      "name": "Water",
+      "count": 257,
+      "samples": [
+        "Dasani Natural Water - 1.5 L x 12 Bottles",
+        "Nestle Pure Life Water 6Litre",
+        "Dasani Mineral Water"
+      ]
+    },
+    {
+      "name": "Soft Drinks & Juices",
+      "count": 222,
+      "samples": [
+        "Blendy single guava juice 250 ml",
+        "Sprite canz",
+        "Al Rabie Juice 330gm Apple"
+      ]
+    },
+    {
+      "name": "Poultry",
+      "count": 196,
+      "samples": [
+        "Shahd Frozen Chicken, 950-1000 gm",
+        "Halwani Chicken Cordon Bleu, 400 Gm",
+        "Roasty Chicken Pane - 350 gram"
+      ]
+    },
+    {
+      "name": "Sauces, Dressings & Condiments",
+      "count": 195,
+      "samples": [
+        "Heinz Dark Soy Sauce - 500ml",
+        "1  Sauce  Caesar >>",
+        "5 Minutes Caramel Sauce - 82gm"
+      ]
+    },
+    {
+      "name": "Chips & Crackers",
+      "count": 193,
+      "samples": [
+        "Nestle Fitness Toasties Oats Tomato & Herbs 36g",
+        "Nosh Nosh Salt and Vinegar Potatoes 56gm-50gm",
+        "Bake Rolz Nacho Cheese Crackers - 36 gram - 30 Pieces"
+      ]
+    },
+    {
+      "name": "Chocolates, Sweets & Desserts",
+      "count": 182,
+      "samples": [
+        "Hyperone Konafa with Nuts - By Weight",
+        "Cadbury Dairy Milk Hazelnut Bar 37g",
+        "Hyperone Konafa with Nuts - By Weight"
+      ]
+    },
+    {
+      "name": "Rice, Pasta & Pulses",
+      "count": 177,
+      "samples": [
+        "Chamsine Egyptian Rice 5kg",
+        "Rehana Lupin 500g",
+        "Abukass Indian Mazza Basmati Rice 10kg"
+      ]
+    },
+    {
+      "name": "Dairy & Eggs",
+      "count": 176,
+      "samples": [
+        "Greenland Full Cream Milk - 1 Liter",
+        "SOFRA CHEDDAR BITES 350 G",
+        "PRESIDENT SPREAD CREAM CHE 240*2R1"
+      ]
+    },
+    {
+      "name": "Biscuits & Cakes",
+      "count": 173,
+      "samples": [
+        "Fruit Cookies 10pcs",
+        "Freska Sticks Wafer - 24 Pieces",
+        "Amada Sticks With Chocolate   Hazelnuts - 32 gm"
+      ]
+    },
+    {
+      "name": "Bakery",
+      "count": 170,
+      "samples": [
+        "Almarai Samboussek With Cheese - 280 gm",
+        "Sunbolah Spanch 400 Gm",
+        "Family Life Bread Tortilla White 15 Pcs"
+      ]
+    },
+    {
+      "name": "Cooking Ingredients",
+      "count": 161,
+      "samples": [
+        "Knoor Liver Mix 30 Gm 10%Off",
+        "N1 Sunflower Oil - 900ml",
+        "Lurpak Butter Block Unsalted 400g"
+      ]
+    },
+    {
+      "name": "Tins, Jars & Packets",
+      "count": 160,
+      "samples": [
+        "California Garden Foul Lebanese Recipe 400g",
+        "Karim Fruit Cocktail 820g",
+        "Olivia Mixed Pickled 720g"
+      ]
+    },
+    {
+      "name": "Tea, Coffee & Hot Drinks",
+      "count": 154,
+      "samples": [
+        "Green Tea W/ Jasmine - 25 Tagged",
+        "English No. 1 - 20 Foil",
+        "Nestle Nescafe Gold Decaffeinated 34 gm"
+      ]
+    },
+    {
+      "name": "Beef & Processed Meat",
+      "count": 144,
+      "samples": [
+        "rich smokwd beef bacon-250g",
+        "Chicketita Beef Burger - 1Kg",
+        "FARAGELLO BEEF BURGER FAMILY 1KG"
+      ]
+    },
+    {
+      "name": "Vegetables & Fruits",
+      "count": 135,
+      "samples": [
+        "GOLD ALEX NAT.MIN.GARLIC200g",
+        "Shahrazad Molokhia - 400 gm",
+        "Hot GRispy Allumete Frites2.5k"
+      ]
+    },
+    {
+      "name": "Cleaning Supplies",
+      "count": 88,
+      "samples": [
+        "Feba Plus Oxygen Dishwashing Liquid - 520 gm",
+        "Carrefour Sea Breeze Fabric Softener - 1 L",
+        "Cleaning Brush Magic Melamine Sponge-2pcs"
+      ]
+    }
+  ],
+  "top_tokens": [
+    [
+      "WATER",
+      250
+    ],
+    [
+      "GRAM",
+      236
+    ],
+    [
+      "CHICKEN",
+      170
+    ],
+    [
+      "NESTLE",
+      127
+    ],
+    [
+      "CHOCOLATE",
+      123
+    ],
+    [
+      "CHEESE",
+      123
+    ],
+    [
+      "BEEF",
+      109
+    ],
+    [
+      "FRESH",
+      109
+    ],
+    [
+      "PIECES",
+      105
+    ],
+    [
+      "SAUCE",
+      99
+    ],
+    [
+      "JUICE",
+      98
+    ],
+    [
+      "NATURAL",
+      97
+    ],
+    [
+      "MILK",
+      93
+    ],
+    [
+      "PURE",
+      82
+    ],
+    [
+      "HALWANI",
+      82
+    ],
+    [
+      "PASTA",
+      82
+    ],
+    [
+      "GARDEN",
+      79
+    ],
+    [
+      "RICH",
+      76
+    ],
+    [
+      "CREAM",
+      76
+    ],
+    [
+      "HOT",
+      76
+    ],
+    [
+      "FARM",
+      75
+    ],
+    [
+      "OIL",
+      73
+    ],
+    [
+      "GREEN",
+      73
+    ],
+    [
+      "TEA",
+      71
+    ],
+    [
+      "COFFEE",
+      66
+    ],
+    [
+      "JUHAYNA",
+      62
+    ],
+    [
+      "DASANI",
+      61
+    ],
+    [
+      "ATYAB",
+      58
+    ],
+    [
+      "DOMTY",
+      58
+    ],
+    [
+      "BAKE",
+      57
+    ],
+    [
+      "CHIPS",
+      56
+    ],
+    [
+      "WHITE",
+      53
+    ],
+    [
+      "MIX",
+      52
+    ],
+    [
+      "TOMATO",
+      52
+    ],
+    [
+      "LEMON",
+      52
+    ],
+    [
+      "DOHA",
+      52
+    ],
+    [
+      "WEIGHT",
+      51
+    ],
+    [
+      "CALIFORNIA",
+      50
+    ],
+    [
+      "DRINK",
+      50
+    ],
+    [
+      "EXTRA",
+      49
+    ],
+    [
+      "ALMARAI",
+      48
+    ],
+    [
+      "SPICY",
+      48
+    ],
+    [
+      "BURGER",
+      46
+    ],
+    [
+      "AMERICANA",
+      46
+    ],
+    [
+      "KETCHUP",
+      45
+    ],
+    [
+      "THREE",
+      44
+    ],
+    [
+      "CHEFS",
+      44
+    ],
+    [
+      "APPLE",
+      44
+    ],
+    [
+      "BEANS",
+      43
+    ],
+    [
+      "BISCUITS",
+      42
+    ]
+  ]
+}
