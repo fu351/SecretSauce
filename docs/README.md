@@ -15,6 +15,12 @@ This directory was consolidated to reduce drift. Start with this index, then jum
 - [`operations-and-workflows.md`](./operations-and-workflows.md)
   - Scripts, workflows, and runbook-level operational commands.
 
+## User workflows
+
+- [`recipe-discovery.md`](./recipe-discovery.md)
+  - Find recipe source URLs with an optional external Parallel Search MCP client,
+    then review and import a chosen recipe into SecretSauce.
+
 ## Scope and source of truth
 
 - These docs describe **implemented** behavior in current source.
